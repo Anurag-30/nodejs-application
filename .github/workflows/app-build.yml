@@ -1,0 +1,59 @@
+name: Node.js CI/CD with Docker
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v2
+      working-directory: ./nodejs-app
+
+    - name: Set up Node.js
+      uses: actions/setup-node@v2
+      with:
+        node-version: 16
+
+    - name: Install dependencies
+      run: npm install
+
+    - name: Run tests (if any)
+      run: npm test
+
+    - name: Login to AWS ECR
+      run: |
+        aws ecr get-login-password --region ${{ secrets.AWS_REGION }} | docker login --username AWS --password-stdin ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com
+
+    - name: Get commit SHA
+      id: get-commit-sha
+      run: echo "::set-output name=commit_sha::$(git rev-parse --short ${{ github.sha }})"
+
+    - name: Build Docker image
+      run: docker build -t nodejs-app .
+
+    - name: Tag Docker image
+      run: |
+        docker tag nodejs-app:latest ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/nodejs-app:latest
+        docker tag nodejs-app:latest ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/nodejs-app:${{ steps.get-commit-sha.outputs.commit_sha }}
+
+    - name: Push Docker image to AWS ECR
+      run: |
+        docker push ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/nodejs-app:latest
+        docker push ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/nodejs-app:${{ steps.get-commit-sha.outputs.commit_sha }}
+
+    - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1  # Change this to your desired AWS region
+
+    - name: Store the latest version info
+      run: |
+        echo ${{ steps.get-commit-sha.outputs.commit_sha }} > version.txt
+        aws s3 cp versions.txt s3://app-version-info/nodejs-app/versions.txt
