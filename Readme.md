@@ -53,6 +53,8 @@ Github Actions
 
 There are two workflows one for building the application and pushing the docker image to ECR and the other one that applies the terraform changes. The triggers for both of them are different , In order to actually deploy the new changes we have to merge the code to release branch only then the terraform code is updated. We are saving the image tag in s3 and it gets updated with every commit to the master.
 
+Ideally we want to have a review in place before approving terraform to apply. I would have gone with some automation tool like Atlantis which provides the ease to plan and review the changes before applying.
+
 Docker Compose
 
 In oder to run the application locally we need mongodb , the docker compose helps in setting up the MongoDb locally.
